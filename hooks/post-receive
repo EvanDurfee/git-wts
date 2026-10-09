@@ -1,0 +1,73 @@
+#!/bin/sh
+# Installed in $project_root/.worktreesync.bare: when a worktree pushes to the hub,
+# fast-forward every other worktree's .worktreesync (and the project root checkout).
+# Worktrees with unpushed commits or conflicting local edits are skipped, never merged.
+
+branch=master
+
+# Only act when the synced branch moved; stdin must be drained either way
+newrev=""
+while read -r _ new ref; do
+	[ "$ref" = "refs/heads/$branch" ] && newrev="$new"
+done
+[ -n "$newrev" ] || exit 0
+
+hub=$(git rev-parse --absolute-git-dir)
+project=$(dirname "$hub")
+
+# Hooks run with GIT_DIR etc. pointing at the hub; clear them before touching other repos
+# shellcheck disable=SC2046  # word splitting of the variable names is intended
+unset $(git rev-parse --local-env-vars)
+
+# Run git in the sync repo selected by update()
+g() {
+	git -C "$tree" --git-dir="$gitdir" --work-tree="$tree" "$@"
+}
+
+# update name git-dir work-tree
+update() {
+	name="$1"
+	gitdir="$2"
+	tree="$3"
+
+	g rev-parse --quiet --verify HEAD >/dev/null || return 0
+
+	# Already current, including the worktree that just pushed (its own push
+	# updates origin/$branch, so don't race it with a fetch)
+	[ "$(g rev-parse HEAD)" = "$newrev" ] && return 0
+
+	if [ "$(g symbolic-ref --quiet --short HEAD)" != "$branch" ]; then
+		echo "worktreesync: skipped $name (not on $branch, rebase in progress?)"
+		return 0
+	fi
+
+	g fetch --quiet origin || {
+		echo "worktreesync: skipped $name (fetch failed)"
+		return 0
+	}
+
+	if ! g merge-base --is-ancestor HEAD "origin/$branch"; then
+		echo "worktreesync: skipped $name (unpushed commits, run git-wts pull -r)"
+		return 0
+	fi
+
+	if g merge --quiet --ff-only "origin/$branch" >/dev/null 2>&1; then
+		echo "worktreesync: updated $name"
+	else
+		echo "worktreesync: skipped $name (local changes would be overwritten)"
+	fi
+}
+
+# The project root holds a regular clone of the hub
+if [ -d "$project/.worktreesync/.git" ]; then
+	update "(project root)" "$project/.worktreesync/.git" "$project/.worktreesync"
+fi
+
+# Linked worktrees keep their .worktreesync git dir at the top of the worktree
+git -C "$project" worktree list --porcelain | while read -r key wt; do
+	[ "$key" = worktree ] || continue
+	[ -f "$wt/.worktreesync/HEAD" ] || continue
+	update "${wt#"$project"/}" "$wt/.worktreesync" "$wt"
+done
+
+exit 0

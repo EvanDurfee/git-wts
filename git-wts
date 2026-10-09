@@ -7,7 +7,7 @@ PROGRAM="$(basename "$0")"
 
 # Resolve symlinks so bundled files are found when installed via a link on PATH
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-HOOK_SRC="$SCRIPT_DIR/hooks/post-checkout"
+HOOKS_SRC="$SCRIPT_DIR/hooks"
 
 # Branch used by the worktreesync hub; the post-checkout hook tracks origin/master
 SYNC_BRANCH="master"
@@ -161,7 +161,10 @@ project_init() {
 	local origin="$1"
 	local project_dir="$2"
 
-	[ -f "$HOOK_SRC" ] || die "post-checkout hook not found at $HOOK_SRC"
+	local hook
+	for hook in post-checkout post-receive; do
+		[ -f "$HOOKS_SRC/$hook" ] || die "$hook hook not found at $HOOKS_SRC/$hook"
+	done
 
 	# Allow an existing empty directory, but never clobber anything
 	if [ -e "$project_dir" ] && [ -n "$(ls -A "$project_dir" 2>/dev/null)" ]; then
@@ -203,7 +206,11 @@ EOF
 
 	# Hooks for `git worktree add` run from the common (project) git dir
 	echo "Install post-checkout hook"
-	install -m 755 "$HOOK_SRC" "$project_dir"/.remote.bare/hooks/post-checkout
+	install -m 755 "$HOOKS_SRC"/post-checkout "$project_dir"/.remote.bare/hooks/post-checkout
+
+	# Pushes to the hub fast-forward the other worktrees' .worktreesync
+	echo "Install post-receive hook"
+	install -m 755 "$HOOKS_SRC"/post-receive "$project_dir"/.worktreesync.bare/hooks/post-receive
 
 	echo "Initialized $project_dir"
 }
