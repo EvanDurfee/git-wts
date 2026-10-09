@@ -1,0 +1,18 @@
+#!/bin/sh
+# On `git worktree add`, prev-HEAD ($1) is all zeros
+case "$1" in *[!0]*) exit 0 ;; esac
+
+common=$(git rev-parse --path-format=absolute --git-common-dir)   # $project_root/.project.bare
+hub="$(dirname "$common")/.worktreesync.bare"
+wt=$(git rev-parse --show-toplevel)
+
+[ -d "$hub" ] || exit 0
+[ -e "$wt/.worktreesync" ] && exit 0
+
+git init --quiet --bare "$wt/.worktreesync"
+git --git-dir="$wt/.worktreesync" config core.bare false
+git --git-dir="$wt/.worktreesync" config core.worktree ..
+git --git-dir="$wt/.worktreesync" config status.showUntrackedFiles no
+git --git-dir="$wt/.worktreesync" remote add origin "$hub"
+git --git-dir="$wt/.worktreesync" fetch --quiet origin
+git --git-dir="$wt/.worktreesync" checkout --quiet -B master --track origin/master
