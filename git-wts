@@ -7,7 +7,9 @@ PROGRAM="$(basename "$0")"
 
 # Resolve symlinks so bundled files are found when installed via a link on PATH
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+# Hooks are grouped by the repo they belong to: hooks/NAME/* installs into DIR/.NAME/hooks
 HOOKS_SRC="$SCRIPT_DIR/hooks"
+HOOK_REPOS=(remote.bare worktreesync.bare)
 
 # Branch used by the worktreesync hub; the post-checkout hook tracks origin/master
 SYNC_BRANCH="master"
@@ -161,9 +163,9 @@ project_init() {
 	local origin="$1"
 	local project_dir="$2"
 
-	local hook
-	for hook in post-checkout post-receive; do
-		[ -f "$HOOKS_SRC/$hook" ] || die "$hook hook not found at $HOOKS_SRC/$hook"
+	local repo
+	for repo in "${HOOK_REPOS[@]}"; do
+		[ -d "$HOOKS_SRC/$repo" ] || die "hooks for .$repo not found at $HOOKS_SRC/$repo"
 	done
 
 	# Allow an existing empty directory, but never clobber anything
@@ -204,13 +206,16 @@ project_init() {
 .worktreeinclude
 EOF
 
-	# Hooks for `git worktree add` run from the common (project) git dir
-	echo "Install post-checkout hook"
-	install -m 755 "$HOOKS_SRC"/post-checkout "$project_dir"/.remote.bare/hooks/post-checkout
-
-	# Pushes to the hub fast-forward the other worktrees' .worktreesync
-	echo "Install post-receive hook"
-	install -m 755 "$HOOKS_SRC"/post-receive "$project_dir"/.worktreesync.bare/hooks/post-receive
+	# .remote.bare: post-checkout sets up .worktreesync on `git worktree add`
+	# .worktreesync.bare: post-receive fast-forwards the other worktrees on push
+	local hook
+	for repo in "${HOOK_REPOS[@]}"; do
+		for hook in "$HOOKS_SRC/$repo"/*; do
+			[ -f "$hook" ] || continue
+			echo "Install .$repo $(basename "$hook") hook"
+			install -m 755 "$hook" "$project_dir/.$repo/hooks/$(basename "$hook")"
+		done
+	done
 
 	echo "Initialized $project_dir"
 }
