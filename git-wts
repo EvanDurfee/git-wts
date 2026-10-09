@@ -27,12 +27,16 @@ Commands:
                     them in .worktreeinclude and the project's info/exclude
   commit [-m MESSAGE]
                     Commit staged changes in the current worktree's .worktreesync
+  push              Push the current worktree's .worktreesync commits to the hub
+  pull [-r]         Pull hub commits into the current worktree's .worktreesync
 
 Options:
   -h, --help        Show this help message and exit
   -u, --update      With add: stage changes to tracked files and new files in
                     directories listed in .worktreeinclude
   -m, --message     With commit: use MESSAGE instead of opening an editor
+  -r, --rebase      With pull: rebase local commits onto the hub instead of
+                    following the pull settings in your git config
 EOF
 }
 
@@ -48,13 +52,14 @@ main() {
 	getopt -T >/dev/null && die "GNU enhanced getopt is required"
 
 	local parsed
-	parsed="$(getopt --name "$PROGRAM" --options 'hum:' --longoptions 'help,update,message:' -- "$@")" \
+	parsed="$(getopt --name "$PROGRAM" --options 'hum:r' --longoptions 'help,update,message:,rebase' -- "$@")" \
 		|| { usage >&2; exit 2; }
 	eval set -- "$parsed"
 
 	local update=false
 	local message=""
 	local has_message=false
+	local rebase=false
 
 	while true; do
 		case "$1" in
@@ -69,6 +74,9 @@ main() {
 				shift
 				message="$1"
 				has_message=true
+				;;
+			-r | --rebase)
+				rebase=true
 				;;
 			--)
 				shift
@@ -92,14 +100,14 @@ main() {
 			if [[ $# -ne 2 ]]; then
 				die "init: expected ORIGIN DIR"
 			fi
-			if [ "$update" = true ] || [ "$has_message" = true ]; then
+			if [ "$update" = true ] || [ "$has_message" = true ] || [ "$rebase" = true ]; then
 				die "init: unexpected option"
 			fi
 			project_init "$1" "$2"
 			;;
 		add)
-			if [ "$has_message" = true ]; then
-				die "add: unexpected option --message"
+			if [ "$has_message" = true ] || [ "$rebase" = true ]; then
+				die "add: unexpected option"
 			fi
 			if [[ $# -eq 0 ]] && [ "$update" = false ]; then
 				die "add: expected PATH... or --update"
@@ -107,8 +115,8 @@ main() {
 			sync_add "$update" "$@"
 			;;
 		commit)
-			if [ "$update" = true ]; then
-				die "commit: unexpected option --update"
+			if [ "$update" = true ] || [ "$rebase" = true ]; then
+				die "commit: unexpected option"
 			fi
 			if [[ $# -ne 0 ]]; then
 				die "commit: unexpected argument: $1"
@@ -118,6 +126,24 @@ main() {
 			else
 				sync_commit
 			fi
+			;;
+		push)
+			if [ "$update" = true ] || [ "$has_message" = true ] || [ "$rebase" = true ]; then
+				die "push: unexpected option"
+			fi
+			if [[ $# -ne 0 ]]; then
+				die "push: unexpected argument: $1"
+			fi
+			sync_push
+			;;
+		pull)
+			if [ "$update" = true ] || [ "$has_message" = true ]; then
+				die "pull: unexpected option"
+			fi
+			if [[ $# -ne 0 ]]; then
+				die "pull: unexpected argument: $1"
+			fi
+			sync_pull "$rebase"
 			;;
 		*)
 			die "unknown command: $command"
@@ -349,6 +375,35 @@ sync_commit() {
 		sync_git commit -m "$1"
 	else
 		sync_git commit
+	fi
+}
+
+
+
+# The hook and init both set the branch to track the hub's origin/master
+sync_push() {
+	sync_context
+
+	sync_git push
+}
+
+
+
+# sync_pull rebase
+# Without rebase, divergence is handled by the pull.* settings in git config
+sync_pull() {
+	if [[ $# -ne 1 ]]; then
+		die "sync_pull: expected <rebase>"
+	fi
+
+	local rebase="$1"
+
+	sync_context
+
+	if [ "$rebase" = true ]; then
+		sync_git pull --rebase
+	else
+		sync_git pull
 	fi
 }
 
