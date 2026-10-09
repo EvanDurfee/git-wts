@@ -22,9 +22,14 @@ Manage a worktree based project layout and sync local files across worktrees.
 Commands:
   init ORIGIN DIR   Clone ORIGIN as a bare repo into the new project directory DIR
                     and set up the worktreesync hub for local files
+  add [-u] [PATH...]
+                    Stage PATHs in the current worktree's .worktreesync, recording
+                    them in .worktreeinclude and the project's info/exclude
 
 Options:
   -h, --help        Show this help message and exit
+  -u, --update      With add: stage changes to tracked files and new files in
+                    directories listed in .worktreeinclude
 EOF
 }
 
@@ -40,15 +45,20 @@ main() {
 	getopt -T >/dev/null && die "GNU enhanced getopt is required"
 
 	local parsed
-	parsed="$(getopt --name "$PROGRAM" --options 'h' --longoptions 'help' -- "$@")" \
+	parsed="$(getopt --name "$PROGRAM" --options 'hu' --longoptions 'help,update' -- "$@")" \
 		|| { usage >&2; exit 2; }
 	eval set -- "$parsed"
+
+	local update=false
 
 	while true; do
 		case "$1" in
 			-h | --help)
 				usage
 				exit 0
+				;;
+			-u | --update)
+				update=true
 				;;
 			--)
 				shift
@@ -72,7 +82,16 @@ main() {
 			if [[ $# -ne 2 ]]; then
 				die "init: expected ORIGIN DIR"
 			fi
+			if [ "$update" = true ]; then
+				die "init: unexpected option --update"
+			fi
 			project_init "$1" "$2"
+			;;
+		add)
+			if [[ $# -eq 0 ]] && [ "$update" = false ]; then
+				die "add: expected PATH... or --update"
+			fi
+			sync_add "$update" "$@"
 			;;
 		*)
 			die "unknown command: $command"
@@ -135,6 +154,158 @@ EOF
 	install -m 755 "$HOOK_SRC" "$project_dir"/.remote.bare/hooks/post-checkout
 
 	echo "Initialized $project_dir"
+}
+
+
+# Set by sync_context: the current worktree and its .worktreesync git dir
+worktree=""
+sync_dir=""
+
+sync_context() {
+	worktree="$(git rev-parse --show-toplevel 2>/dev/null)" \
+		|| die "not inside a project worktree"
+	sync_dir="$worktree/.worktreesync"
+	[ -f "$sync_dir/HEAD" ] || die "no .worktreesync git dir in $worktree"
+}
+
+
+# Run git against the worktree's .worktreesync, with paths relative to the worktree root
+sync_git() {
+	git -C "$worktree" --literal-pathspecs --git-dir="$sync_dir" --work-tree="$worktree" "$@"
+}
+
+
+# worktree_relpath path
+# Print path relative to the worktree root, refusing anything that can't be synced
+worktree_relpath() {
+	if [[ $# -ne 1 ]]; then
+		die "worktree_relpath: expected <path>"
+	fi
+
+	local path="$1"
+	[ -e "$path" ] || [ -L "$path" ] || die "add: no such file or directory: $path"
+
+	# Let git resolve the containing directory, so symlinked parents (/home -> /var/home) still match
+	local dir="$path"
+	local name=""
+	if [ ! -d "$path" ] || [ -L "$path" ]; then
+		dir="$(dirname "$path")"
+		name="$(basename "$path")"
+	fi
+
+	local dir_top
+	local prefix
+	dir_top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || dir_top=""
+	[ "$dir_top" = "$worktree" ] || die "add: $path is not inside $worktree"
+	prefix="$(git -C "$dir" rev-parse --show-prefix)"
+
+	local rel="$prefix$name"
+	rel="${rel%/}"
+	case "$rel" in
+		"")
+			die "add: refusing to add the worktree root"
+			;;
+		.git | .git/* | .worktreesync | .worktreesync/*)
+			die "add: refusing to add $rel"
+			;;
+	esac
+
+	if [ -n "$(git -C "$worktree" --literal-pathspecs ls-files -- "$rel")" ]; then
+		die "add: $rel is tracked by the project repo"
+	fi
+
+	echo "$rel"
+}
+
+
+# entry_add file rel
+# Append an anchored entry for rel to an ignore-style file; fails if one is already present
+entry_add() {
+	if [[ $# -ne 2 ]]; then
+		die "entry_add: expected <file> <rel>"
+	fi
+
+	local file="$1"
+	local rel="$2"
+
+	if [ -f "$file" ] && grep -qxF -e "$rel" -e "/$rel" -e "$rel/" -e "/$rel/" "$file"; then
+		return 1
+	fi
+
+	# Don't glue the entry onto a last line with no trailing newline
+	if [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ]; then
+		echo >>"$file"
+	fi
+	echo "/$rel" >>"$file"
+}
+
+
+# sync_add update [path...]
+sync_add() {
+	if [[ $# -lt 1 ]]; then
+		die "sync_add: expected <update> [path...]"
+	fi
+
+	local update="$1"
+	shift
+
+	sync_context
+
+	# Validate everything before touching any files
+	local rels=()
+	local path
+	for path in "$@"; do
+		rels+=("$(worktree_relpath "$path")")
+	done
+
+	local include="$worktree/.worktreeinclude"
+	local exclude
+	exclude="$(git -C "$worktree" rev-parse --path-format=absolute --git-path info/exclude)"
+	mkdir -p "$(dirname "$exclude")"
+
+	local include_changed=false
+	local rel
+	for rel in "${rels[@]}"; do
+		if entry_add "$include" "$rel"; then
+			echo "Add $rel to .worktreeinclude"
+			include_changed=true
+		fi
+		if entry_add "$exclude" "$rel"; then
+			echo "Add $rel to $exclude"
+		fi
+
+		# Local files are usually gitignored by the project, so force them in
+		echo "Stage $rel"
+		sync_git add --force -- "$rel"
+	done
+
+	if [ "$include_changed" = true ]; then
+		echo "Stage .worktreeinclude"
+		sync_git add --force -- .worktreeinclude
+	fi
+
+	if [ "$update" = true ]; then
+		echo "Stage changes to tracked files"
+		sync_git add --update
+
+		# add --update skips new files, so re-add directories listed in .worktreeinclude
+		if [ -f "$include" ]; then
+			local entry
+			while IFS= read -r entry || [ -n "$entry" ]; do
+				case "$entry" in
+					"" | "#"* | "!"*)
+						continue
+						;;
+				esac
+				entry="${entry#/}"
+				entry="${entry%/}"
+				if [ -d "$worktree/$entry" ] && [ ! -L "$worktree/$entry" ]; then
+					echo "Stage new files in $entry"
+					sync_git add --force -- "$entry"
+				fi
+			done <"$include"
+		fi
+	fi
 }
 
 
