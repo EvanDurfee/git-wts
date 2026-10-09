@@ -25,11 +25,14 @@ Commands:
   add [-u] [PATH...]
                     Stage PATHs in the current worktree's .worktreesync, recording
                     them in .worktreeinclude and the project's info/exclude
+  commit [-m MESSAGE]
+                    Commit staged changes in the current worktree's .worktreesync
 
 Options:
   -h, --help        Show this help message and exit
   -u, --update      With add: stage changes to tracked files and new files in
                     directories listed in .worktreeinclude
+  -m, --message     With commit: use MESSAGE instead of opening an editor
 EOF
 }
 
@@ -45,11 +48,13 @@ main() {
 	getopt -T >/dev/null && die "GNU enhanced getopt is required"
 
 	local parsed
-	parsed="$(getopt --name "$PROGRAM" --options 'hu' --longoptions 'help,update' -- "$@")" \
+	parsed="$(getopt --name "$PROGRAM" --options 'hum:' --longoptions 'help,update,message:' -- "$@")" \
 		|| { usage >&2; exit 2; }
 	eval set -- "$parsed"
 
 	local update=false
+	local message=""
+	local has_message=false
 
 	while true; do
 		case "$1" in
@@ -59,6 +64,11 @@ main() {
 				;;
 			-u | --update)
 				update=true
+				;;
+			-m | --message)
+				shift
+				message="$1"
+				has_message=true
 				;;
 			--)
 				shift
@@ -82,16 +92,32 @@ main() {
 			if [[ $# -ne 2 ]]; then
 				die "init: expected ORIGIN DIR"
 			fi
-			if [ "$update" = true ]; then
-				die "init: unexpected option --update"
+			if [ "$update" = true ] || [ "$has_message" = true ]; then
+				die "init: unexpected option"
 			fi
 			project_init "$1" "$2"
 			;;
 		add)
+			if [ "$has_message" = true ]; then
+				die "add: unexpected option --message"
+			fi
 			if [[ $# -eq 0 ]] && [ "$update" = false ]; then
 				die "add: expected PATH... or --update"
 			fi
 			sync_add "$update" "$@"
+			;;
+		commit)
+			if [ "$update" = true ]; then
+				die "commit: unexpected option --update"
+			fi
+			if [[ $# -ne 0 ]]; then
+				die "commit: unexpected argument: $1"
+			fi
+			if [ "$has_message" = true ]; then
+				sync_commit "$message"
+			else
+				sync_commit
+			fi
 			;;
 		*)
 			die "unknown command: $command"
@@ -305,6 +331,24 @@ sync_add() {
 				fi
 			done <"$include"
 		fi
+	fi
+}
+
+
+
+# sync_commit [message]
+# With no message, git opens the editor as usual
+sync_commit() {
+	if [[ $# -gt 1 ]]; then
+		die "sync_commit: expected [message]"
+	fi
+
+	sync_context
+
+	if [[ $# -eq 1 ]]; then
+		sync_git commit -m "$1"
+	else
+		sync_git commit
 	fi
 }
 
