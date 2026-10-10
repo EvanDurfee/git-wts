@@ -241,7 +241,7 @@ syntax, itself tracked by the hub\&.
 .RE
 .SH "HOOKS"
 .sp
-\fBclone\fR installs every file in \fBhooks/\fR\fINAME\fR\fB/\fR, found next to the (symlink\-resolved) \fBgit\-wts\fR script, into the hooks directory of \fB\&.\fR\fINAME\fR in the project directory:
+\fBclone\fR copies every file in \fBshare/git\-wts/hooks/\fR\fINAME\fR\fB/\fR, relative to the installation prefix of the (symlink\-resolved) \fBgit\-wts\fR script, into the hooks directory of \fB\&.\fR\fINAME\fR in the project directory:
 .PP
 \fBpost\-checkout\fR (in \fB\&.remote\&.bare\fR)
 .RS 4

@@ -7,8 +7,9 @@ PROGRAM="$(basename "$0")"
 
 # Resolve symlinks so bundled files are found when installed via a link on PATH
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-# Hooks are grouped by the repo they belong to: hooks/NAME/* installs into DIR/.NAME/hooks
-HOOKS_SRC="$SCRIPT_DIR/hooks"
+# Hooks are grouped by the repo they belong to: hooks/NAME/* installs into DIR/.NAME/hooks.
+# The same relative path works from a repo checkout and an installed prefix (e.g. Homebrew's pkgshare)
+HOOKS_SRC="$(dirname "$SCRIPT_DIR")/share/git-wts/hooks"
 HOOK_REPOS=(remote.bare worktreesync.bare)
 
 # Branch used by the worktreesync hub; the post-checkout hook tracks origin/master
