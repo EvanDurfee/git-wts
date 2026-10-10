@@ -1,0 +1,333 @@
+'\" t
+.\"     Title: git-wts
+.\"      Date: 10/10/2026
+.\"    Manual: Git Manual
+.\"    Source: git-wts
+.\"  Language: English
+.\"
+.TH "GIT\-WTS" "1" "10/10/2026" "git\-wts" "Git Manual"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+git-wts \- Manage a worktree project layout and sync local files across worktrees
+.SH "SYNOPSIS"
+.sp
+.nf
+\fBgit\fR \fBwts\fR \fBclone\fR \fI<origin>\fR [\fI<dir>\fR]
+\fBgit\fR \fBwts\fR \fBadd\fR [\fB\-u\fR] [\fI<path>\fR\&...\:]
+\fBgit\fR \fBwts\fR \fBcommit\fR [\fB\-m\fR \fI<message>\fR]
+\fBgit\fR \fBwts\fR \fBpush\fR
+\fBgit\fR \fBwts\fR \fBpull\fR [\fB\-r\fR]
+.fi
+.SH "DESCRIPTION"
+.sp
+Set up a project directory for development with \fBgit-worktree\fR(1), and keep local files that the project does not track (such as \fB\&.env\fR or \fB\&.idea/\fR) in sync between its worktrees\&.
+.sp
+A project directory holds a bare clone of the project repository and any number of linked worktrees created with \fBgit\fR \fBworktree\fR \fBadd\fR\&. Next to it lives a second, private repository, the \fIhub\fR, which version controls the local files\&. Each worktree gets its own \fB\&.worktreesync\fR git directory that tracks the hub, so local files are staged, committed, pushed and pulled much like project files, using the \fBgit\fR \fBwts\fR commands below\&.
+.sp
+Apart from \fBclone\fR, every command acts on the \fB\&.worktreesync\fR of the worktree containing the current directory, and can be run from any subdirectory of it\&.
+.SH "COMMANDS"
+.PP
+\fBclone\fR \fI<origin>\fR [\fI<dir>\fR]
+.RS 4
+Create the project directory
+\fI<dir>\fR
+for
+\fI<origin>\fR
+(see "LAYOUT" below)\&. The project repository is cloned bare into
+\fB\&.remote\&.bare\fR, its fetch refspec is changed to
+\fB+refs/heads/*:refs/remotes/origin/*\fR
+so that branches are tracked as remote\-tracking branches, and it is fetched again\&. The hub is created with an initial commit containing
+\fB\&.worktreeinclude\fR, and the hooks described in "HOOKS" are installed\&.
+.sp
+If
+\fI<dir>\fR
+is omitted, it is derived from
+\fI<origin>\fR
+the same way
+\fBgit-clone\fR(1)
+does it: trailing slashes and a trailing
+\fB/\&.git\fR
+or
+\fB\&.git\fR
+are removed, and the last path component is used, so both
+\fBgit@host:me/foo\&.git\fR
+and
+\fB/src/foo/\&.git\fR
+give
+\fBfoo\fR\&.
+\fI<dir>\fR
+may already exist only if it is empty\&.
+.RE
+.PP
+\fBadd\fR [\fB\-u\fR] [\fI<path>\fR\&...\:]
+.RS 4
+Stage each
+\fI<path>\fR
+in the worktree\(cqs
+\fB\&.worktreesync\fR\&. Paths may be files or directories and are relative to the current directory\&. All paths are validated before anything is changed\&.
+.sp
+Each path is also recorded as an anchored entry (for example
+\fB/src/local\&.cfg\fR) in the worktree\(cqs
+\fB\&.worktreeinclude\fR
+and in the project repository\(cqs
+\fBinfo/exclude\fR, unless an entry for it is already present with or without the leading or trailing slash\&. Since
+\fBinfo/exclude\fR
+lives in the bare repository, the exclusion applies to every worktree\&.
+\fB\&.worktreeinclude\fR
+is staged when it changes\&.
+.sp
+Paths are staged with
+\fBgit\fR \fBadd\fR \fB\-\-force\fR, as local files are commonly ignored by the project\(cqs
+\fB\&.gitignore\fR\&. For a directory this includes files ignored by a
+\fB\&.gitignore\fR
+inside it\&.
+.sp
+\fBadd\fR
+refuses paths tracked by the project repository, the worktree root,
+\fB\&.git\fR,
+\fB\&.worktreesync\fR, and paths outside the current worktree\&. At least one
+\fI<path>\fR
+or
+\fB\-u\fR
+must be given\&.
+.RE
+.PP
+\fBcommit\fR [\fB\-m\fR \fI<message>\fR]
+.RS 4
+Commit the changes staged in the worktree\(cqs
+\fB\&.worktreesync\fR\&. Without
+\fB\-m\fR
+an editor is opened as for
+\fBgit-commit\fR(1)\&. The user\(cqs git configuration applies, including commit signing\&.
+.RE
+.PP
+\fBpush\fR
+.RS 4
+Push the worktree\(cqs
+\fB\&.worktreesync\fR
+commits to the hub\&. If another worktree pushed first, the push is rejected; integrate its changes with
+\fBgit\fR \fBwts\fR \fBpull\fR \fB\-r\fR
+and push again\&. A successful push updates the other worktrees, see "HOOKS"\&.
+.RE
+.PP
+\fBpull\fR [\fB\-r\fR]
+.RS 4
+Fetch from the hub and integrate its commits into the worktree\(cqs
+\fB\&.worktreesync\fR\&. Without
+\fB\-r\fR, divergent histories are handled according to the
+\fBpull\&.*\fR
+settings in
+\fBgit-config\fR(1); with
+\fBpull\&.ff=only\fR
+a pull after a rejected push fails, and
+\fB\-r\fR
+is needed\&.
+.sp
+As with
+\fBgit-pull\fR(1), uncommitted changes to tracked files make a rebasing pull fail; commit them first\&.
+.RE
+.SH "OPTIONS"
+.PP
+\fB\-h\fR, \fB\-\-help\fR
+.RS 4
+Show a usage summary and exit\&.
+.RE
+.PP
+\fB\-u\fR, \fB\-\-update\fR
+.RS 4
+With
+\fBadd\fR: also stage changes to files already tracked by
+\fB\&.worktreesync\fR, including deletions, and new files inside directories listed in
+\fB\&.worktreeinclude\fR\&. May be combined with
+\fI<path>\fR
+arguments\&.
+.RE
+.PP
+\fB\-m\fR \fI<message>\fR, \fB\-\-message\fR=\fI<message>\fR
+.RS 4
+With
+\fBcommit\fR: use
+\fI<message>\fR
+as the commit message instead of opening an editor\&.
+.RE
+.PP
+\fB\-r\fR, \fB\-\-rebase\fR
+.RS 4
+With
+\fBpull\fR: rebase local commits on top of the hub instead of following the
+\fBpull\&.*\fR
+configuration\&.
+.RE
+.sp
+Options are rejected by commands they do not apply to\&.
+.SH "LAYOUT"
+.sp
+After \fBgit\fR \fBwts\fR \fBclone\fR \fI<origin>\fR \fIproject\fR and \fBgit\fR \fBworktree\fR \fBadd\fR \fIfeat\fR, the project directory contains:
+.PP
+\fBproject/\&.remote\&.bare\fR
+.RS 4
+Bare clone of
+\fI<origin>\fR, shared by all worktrees\&.
+\fBinfo/exclude\fR
+lists
+\fB\&.worktreesync\fR,
+\fB\&.worktreeinclude\fR
+and every path added with
+\fBgit\fR \fBwts\fR \fBadd\fR\&.
+.RE
+.PP
+\fBproject/\&.git\fR
+.RS 4
+A gitfile containing
+\fBgitdir: \&./\&.remote\&.bare\fR, so that git commands such as
+\fBgit\fR \fBworktree\fR \fBadd\fR
+and
+\fBgit\fR \fBfetch\fR
+work from the project directory\&.
+.RE
+.PP
+\fBproject/\&.worktreesync\&.bare\fR
+.RS 4
+The hub: a bare repository whose
+\fBmaster\fR
+branch holds the synced local files\&.
+.RE
+.PP
+\fBproject/\&.worktreesync\fR
+.RS 4
+A regular clone of the hub, for inspecting or editing its contents from the project directory\&.
+.RE
+.PP
+\fBproject/feat/\&.worktreesync\fR
+.RS 4
+The worktree\(cqs sync repository: a git directory whose work tree is the worktree itself (\fBcore\&.worktree=\&.\&.\fR), with
+\fBstatus\&.showUntrackedFiles=no\fR
+to hide project files, and a
+\fBmaster\fR
+branch tracking the hub\(cqs\&. It can be used directly with
+\fBgit\fR \fB\-\-git\-dir=\&.worktreesync\fR\&.
+.RE
+.PP
+\fBproject/feat/\&.worktreeinclude\fR
+.RS 4
+The list of synced paths, in
+\fBgitignore\fR(5)
+syntax, itself tracked by the hub\&.
+.RE
+.SH "HOOKS"
+.sp
+\fBclone\fR installs every file in \fBhooks/\fR\fINAME\fR\fB/\fR, found next to the (symlink\-resolved) \fBgit\-wts\fR script, into the hooks directory of \fB\&.\fR\fINAME\fR in the project directory:
+.PP
+\fBpost\-checkout\fR (in \fB\&.remote\&.bare\fR)
+.RS 4
+When
+\fBgit\fR \fBworktree\fR \fBadd\fR
+creates a worktree, set up its
+\fB\&.worktreesync\fR
+and check out the hub\(cqs
+\fBmaster\fR
+into it, bringing in all synced files\&. Worktrees that already contain a
+\fB\&.worktreesync\fR
+are left alone\&.
+.RE
+.PP
+\fBpost\-receive\fR (in \fB\&.worktreesync\&.bare\fR)
+.RS 4
+When a push moves the hub\(cqs
+\fBmaster\fR, fast\-forward the project directory\(cqs
+\fB\&.worktreesync\fR
+clone and the
+\fB\&.worktreesync\fR
+of every other worktree\&. A worktree is skipped, and never merged, if it has unpushed commits, is not on
+\fBmaster\fR
+(for example during a rebase), or has uncommitted changes the update would overwrite\&. One line per worktree is reported in the output of the push:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+remote: worktreesync: updated (project root)
+remote: worktreesync: skipped b (unpushed commits, run git\-wts pull \-r)
+.fi
+.if n \{\
+.RE
+.\}
+.RE
+.sp
+Projects created before a hook was added can install it by copying it into place and making it executable\&.
+.SH "EXAMPLES"
+.sp
+Set up a project and share a local environment file and IDE settings with every worktree:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+$ git wts clone git@github\&.com:me/foo\&.git
+$ cd foo
+$ git worktree add feat
+$ cd feat
+$ git wts add \&.env \&.idea
+$ git wts commit \-m \*(Aqshare local settings\*(Aq
+$ git wts push
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Worktrees created afterwards check out \fB\&.env\fR and \fB\&.idea/\fR automatically\&. To publish later changes to them:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+$ git wts add \-u
+$ git wts commit \-m \*(Aqupdate run configurations\*(Aq
+$ git wts push
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+If the push is rejected because another worktree pushed first, rebase onto the hub and push again\&. When both changed the same file, resolve the conflict and finish the rebase with git directly:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+$ git wts pull \-r
+CONFLICT (content): Merge conflict in \&.env
+$ $EDITOR \&.env
+$ git wts add \&.env
+$ git \-\-git\-dir=\&.worktreesync rebase \-\-continue
+$ git wts push
+.fi
+.if n \{\
+.RE
+.\}
+.SH "BUGS"
+.sp
+\fBadd\fR, \fBcommit\fR, \fBpush\fR and \fBpull\fR only work inside a linked worktree; the \fB\&.worktreesync\fR clone in the project directory is managed with plain git\&.
+.sp
+There is no command to continue or abort a rebase started by \fBpull\fR \fB\-r\fR; use \fBgit\fR \fB\-\-git\-dir=\&.worktreesync\fR \fBrebase\fR \fB\-\-continue\fR or \fB\-\-abort\fR\&.
+.sp
+Removing a synced file stages its deletion with \fBadd\fR \fB\-u\fR, but leaves its entries in \fB\&.worktreeinclude\fR and \fBinfo/exclude\fR\&.
+.sp
+Because untracked files are hidden in \fB\&.worktreesync\fR, git\(cqs status hints mention \fB\-u\fR; this refers to \fBgit\fR \fBstatus\fR \fB\-u\fR, not \fBgit\fR \fBwts\fR \fB\-u\fR\&.
+.SH "SEE ALSO"
+.sp
+\fBgit-worktree\fR(1), \fBgit-clone\fR(1), \fBgit-pull\fR(1), \fBgithooks\fR(5), \fBgitignore\fR(5)
