@@ -22,8 +22,10 @@ Usage: $PROGRAM [OPTIONS] COMMAND [ARGS...]
 Manage a worktree based project layout and sync local files across worktrees.
 
 Commands:
-  init ORIGIN DIR   Clone ORIGIN as a bare repo into the new project directory DIR
-                    and set up the worktreesync hub for local files
+  clone ORIGIN [DIR]
+                    Clone ORIGIN as a bare repo into the new project directory DIR
+                    and set up the worktreesync hub for local files; DIR defaults
+                    to the repo name from ORIGIN, as with git clone
   add [-u] [PATH...]
                     Stage PATHs in the current worktree's .worktreesync, recording
                     them in .worktreeinclude and the project's info/exclude
@@ -98,14 +100,19 @@ main() {
 	local command="$1"
 	shift
 	case "$command" in
-		init)
-			if [[ $# -ne 2 ]]; then
-				die "init: expected ORIGIN DIR"
+		clone)
+			if [[ $# -lt 1 ]] || [[ $# -gt 2 ]]; then
+				die "clone: expected ORIGIN [DIR]"
 			fi
 			if [ "$update" = true ] || [ "$has_message" = true ] || [ "$rebase" = true ]; then
-				die "init: unexpected option"
+				die "clone: unexpected option"
 			fi
-			project_init "$1" "$2"
+			# Assign separately so a failed guess stops the script under set -e
+			local dir="${2:-}"
+			if [ -z "$dir" ]; then
+				dir="$(origin_dir_name "$1")"
+			fi
+			project_clone "$1" "$dir"
 			;;
 		add)
 			if [ "$has_message" = true ] || [ "$rebase" = true ]; then
@@ -154,10 +161,31 @@ main() {
 }
 
 
-# project_init origin dir
-project_init() {
+# origin_dir_name origin
+# Print the directory name git clone would pick: foo for host:me/foo.git, /src/foo/.git, ...
+origin_dir_name() {
+	if [[ $# -ne 1 ]]; then
+		die "origin_dir_name: expected <origin>"
+	fi
+
+	local name="$1"
+	while [[ "$name" == */ ]]; do
+		name="${name%/}"
+	done
+	name="${name%/.git}"
+	name="${name%.git}"
+	name="${name##*/}"
+	name="${name##*:}"
+
+	[ -n "$name" ] || die "clone: cannot guess a directory name from $1; pass DIR"
+	echo "$name"
+}
+
+
+# project_clone origin dir
+project_clone() {
 	if [[ $# -ne 2 ]]; then
-		die "project_init: expected <origin> <dir>"
+		die "project_clone: expected <origin> <dir>"
 	fi
 
 	local origin="$1"
@@ -392,7 +420,7 @@ sync_commit() {
 
 
 
-# The hook and init both set the branch to track the hub's origin/master
+# The hook and clone both set the branch to track the hub's origin/master
 sync_push() {
 	sync_context
 
