@@ -6,7 +6,7 @@
 # `git-wts` by name. Sourcing it from .bashrc also works.
 
 _git_wts() {
-	local subcommands="clone add commit push pull"
+	local subcommands="clone add commit push pull status"
 	local subcommand
 	subcommand="$(__git_find_on_cmdline "$subcommands")"
 
@@ -46,7 +46,7 @@ _git_wts() {
 		pull,*)
 			__gitcomp "--rebase"
 			;;
-		push,*)
+		push,* | status,*)
 			COMPREPLY=()
 			;;
 	esac

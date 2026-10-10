@@ -33,6 +33,7 @@ Commands:
                     Commit staged changes in the current worktree's .worktreesync
   push              Push the current worktree's .worktreesync commits to the hub
   pull [-r]         Pull hub commits into the current worktree's .worktreesync
+  status            Show the current worktree's .worktreesync status against the hub
 
 Options:
   -h, --help        Show this help message and exit
@@ -153,6 +154,15 @@ main() {
 				die "pull: unexpected argument: $1"
 			fi
 			sync_pull "$rebase"
+			;;
+		status)
+			if [ "$update" = true ] || [ "$has_message" = true ] || [ "$rebase" = true ]; then
+				die "status: unexpected option"
+			fi
+			if [[ $# -ne 0 ]]; then
+				die "status: unexpected argument: $1"
+			fi
+			sync_status
 			;;
 		*)
 			die "unknown command: $command"
@@ -445,6 +455,17 @@ sync_pull() {
 	else
 		sync_git pull
 	fi
+}
+
+
+
+# The hub is local, so fetch first to make the ahead/behind report current
+sync_status() {
+	sync_context
+
+	sync_git fetch --quiet origin \
+		|| echo "$PROGRAM: warning: could not fetch from the hub; ahead/behind may be stale" >&2
+	sync_git status
 }
 
 

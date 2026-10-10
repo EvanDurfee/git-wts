@@ -19,6 +19,7 @@ __git_wts_commands() {
 		'commit:commit staged changes in the worktree'\''s .worktreesync'
 		'push:push .worktreesync commits to the hub'
 		'pull:pull hub commits into the worktree'\''s .worktreesync'
+		'status:show the worktree'\''s .worktreesync status against the hub'
 	)
 	_describe -t commands 'git-wts command' commands
 }
@@ -57,7 +58,7 @@ _git-wts() {
 					_arguments \
 						'(-r --rebase)'{-r,--rebase}'[rebase local commits onto the hub]' && ret=0
 					;;
-				(push)
+				(push|status)
 					_message 'no arguments' && ret=0
 					;;
 				(*)
