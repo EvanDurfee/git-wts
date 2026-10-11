@@ -5,6 +5,8 @@
 # it the first time `git worktree-sync` is completed, and bash-completion loads it for
 # `git-worktree-sync` by name. Sourcing it from .bashrc also works.
 
+# cur and prev are set by git's completion before it calls this function
+# shellcheck disable=SC2154
 _git_worktree_sync() {
 	local subcommands="clone add commit push pull status"
 	local subcommand
