@@ -1,0 +1,184 @@
+= git-worktree-sync(1)
+:doctype: manpage
+:manmanual: Git Manual
+:mansource: git-worktree-sync
+
+== NAME
+
+git-worktree-sync - Manage a worktree project layout and sync local files across worktrees
+
+== SYNOPSIS
+
+[verse]
+*git* *worktree-sync* *clone* _<origin>_ [_<dir>_]
+*git* *worktree-sync* *add* [*-u*] [_<path>_...]
+*git* *worktree-sync* *commit* [*-m* _<message>_]
+*git* *worktree-sync* *push*
+*git* *worktree-sync* *pull* [*-r*]
+*git* *worktree-sync* *status*
+
+== DESCRIPTION
+
+Set up a project directory for development with *git-worktree*(1), and keep local files that the project does not track (such as *.env* or *.idea/*) in sync between its worktrees.
+
+A project directory holds a bare clone of the project repository and any number of linked worktrees created with *git* *worktree* *add*.
+Next to it lives a second, private repository, the _hub_, which version controls the local files.
+Each worktree gets its own *.worktreesync* git directory that tracks the hub, so local files are staged, committed, pushed and pulled much like project files, using the *git* *worktree-sync* commands below.
+
+Apart from *clone*, every command acts on the *.worktreesync* of the worktree containing the current directory, and can be run from any subdirectory of it.
+
+== COMMANDS
+
+*clone* _<origin>_ [_<dir>_]::
+Create the project directory _<dir>_ for _<origin>_ (see "LAYOUT" below).
+The project repository is cloned bare into *.remote.bare*, its fetch refspec is changed to **{plus}refs/heads/{asterisk}:refs/remotes/origin/{asterisk}** so that branches are tracked as remote-tracking branches, and it is fetched again.
+The hub is created with an initial commit containing *.worktreeinclude*, and the hooks described in "HOOKS" are installed.
++
+If _<dir>_ is omitted, it is derived from _<origin>_ the same way *git-clone*(1) does it: trailing slashes and a trailing */.git* or *.git* are removed, and the last path component is used, so both *git@host:me/foo.git* and */src/foo/.git* give *foo*.
+_<dir>_ may already exist only if it is empty.
+
+*add* [*-u*] [_<path>_...]::
+Stage each _<path>_ in the worktree's *.worktreesync*.
+Paths may be files or directories and are relative to the current directory.
+All paths are validated before anything is changed.
++
+Each path is also recorded as an anchored entry (for example */src/local.cfg*) in the worktree's *.worktreeinclude* and in the project repository's *info/exclude*, unless an entry for it is already present with or without the leading or trailing slash.
+Since *info/exclude* lives in the bare repository, the exclusion applies to every worktree.
+*.worktreeinclude* is staged when it changes.
++
+Paths are staged with *git* *add* *--force*, as local files are commonly ignored by the project's *.gitignore*.
+For a directory this includes files ignored by a *.gitignore* inside it.
++
+*add* refuses paths tracked by the project repository, the worktree root, *.git*, *.worktreesync*, and paths outside the current worktree.
+At least one _<path>_ or *-u* must be given.
+
+*commit* [*-m* _<message>_]::
+Commit the changes staged in the worktree's *.worktreesync*.
+Without *-m* an editor is opened as for *git-commit*(1).
+The user's git configuration applies, including commit signing.
+
+*push*::
+Push the worktree's *.worktreesync* commits to the hub.
+If another worktree pushed first, the push is rejected; integrate its changes with *git* *worktree-sync* *pull* *-r* and push again.
+A successful push updates the other worktrees, see "HOOKS".
+
+*pull* [*-r*]::
+Fetch from the hub and integrate its commits into the worktree's *.worktreesync*.
+Without *-r*, divergent histories are handled according to the *pull.** settings in *git-config*(1); with *pull.ff=only* a pull after a rejected push fails, and *-r* is needed.
++
+As with *git-pull*(1), uncommitted changes to tracked files make a rebasing pull fail; commit them first.
+
+*status*::
+Show the *git-status*(1) of the worktree's *.worktreesync*: staged and unstaged changes to synced files, and how many commits the worktree is ahead of or behind the hub.
+The hub is fetched first, so the ahead/behind count is current.
+Untracked files are not shown, including new files inside synced directories; use *git* *worktree-sync* *add* *-u* to stage those.
+
+== OPTIONS
+
+*-h*, *--help*::
+Show a usage summary and exit.
+
+*-u*, *--update*::
+With *add*: also stage changes to files already tracked by *.worktreesync*, including deletions, and new files inside directories listed in *.worktreeinclude*.
+May be combined with _<path>_ arguments.
+
+*-m* _<message>_, *--message*=_<message>_::
+With *commit*: use _<message>_ as the commit message instead of opening an editor.
+
+*-r*, *--rebase*::
+With *pull*: rebase local commits on top of the hub instead of following the *pull.** configuration.
+
+Options are rejected by commands they do not apply to.
+
+== LAYOUT
+
+After *git* *worktree-sync* *clone* _<origin>_ _project_ and *git* *worktree* *add* _feat_, the project directory contains:
+
+*project/.remote.bare*::
+Bare clone of _<origin>_, shared by all worktrees.
+*info/exclude* lists *.worktreesync*, *.worktreeinclude* and every path added with *git* *worktree-sync* *add*.
+
+*project/.git*::
+A gitfile containing *gitdir: ./.remote.bare*, so that git commands such as *git* *worktree* *add* and *git* *fetch* work from the project directory.
+
+*project/.worktreesync.bare*::
+The hub: a bare repository whose *master* branch holds the synced local files.
+
+*project/.worktreesync*::
+A regular clone of the hub, for inspecting or editing its contents from the project directory.
+
+*project/feat/.worktreesync*::
+The worktree's sync repository: a git directory whose work tree is the worktree itself (*core.worktree=..*), with *status.showUntrackedFiles=no* to hide project files, and a *master* branch tracking the hub's.
+It can be used directly with *git* *--git-dir=.worktreesync*.
+
+*project/feat/.worktreeinclude*::
+The list of synced paths, in *gitignore*(5) syntax, itself tracked by the hub.
+
+== HOOKS
+
+*clone* copies every file in **share/git-worktree-sync/hooks/**__NAME__**/**, relative to the installation prefix of the (symlink-resolved) *git-worktree-sync* script, into the hooks directory of **.**__NAME__ in the project directory:
+
+*post-checkout* (in *.remote.bare*)::
+When *git* *worktree* *add* creates a worktree, set up its *.worktreesync* and check out the hub's *master* into it, bringing in all synced files.
+Worktrees that already contain a *.worktreesync* are left alone.
+
+*post-receive* (in *.worktreesync.bare*)::
+When a push moves the hub's *master*, fast-forward the project directory's *.worktreesync* clone and the *.worktreesync* of every other worktree.
+A worktree is skipped, and never merged, if it has unpushed commits, is not on *master* (for example during a rebase), or has uncommitted changes the update would overwrite.
+One line per worktree is reported in the output of the push:
++
+----
+remote: worktreesync: updated (project root)
+remote: worktreesync: skipped b (unpushed commits, run git-worktree-sync pull -r)
+----
+
+Projects created before a hook was added can install it by copying it into place and making it executable.
+
+== EXAMPLES
+
+Set up a project and share a local environment file and IDE settings with every worktree:
+
+----
+$ git worktree-sync clone git@github.com:me/foo.git
+$ cd foo
+$ git worktree add feat
+$ cd feat
+$ git worktree-sync add .env .idea
+$ git worktree-sync commit -m 'share local settings'
+$ git worktree-sync push
+----
+
+Worktrees created afterwards check out *.env* and *.idea/* automatically.
+To publish later changes to them:
+
+----
+$ git worktree-sync add -u
+$ git worktree-sync commit -m 'update run configurations'
+$ git worktree-sync push
+----
+
+If the push is rejected because another worktree pushed first, rebase onto the hub and push again.
+When both changed the same file, resolve the conflict and finish the rebase with git directly:
+
+----
+$ git worktree-sync pull -r
+CONFLICT (content): Merge conflict in .env
+$ $EDITOR .env
+$ git worktree-sync add .env
+$ git --git-dir=.worktreesync rebase --continue
+$ git worktree-sync push
+----
+
+== BUGS
+
+*add*, *commit*, *push*, *pull* and *status* only work inside a linked worktree; the *.worktreesync* clone in the project directory is managed with plain git.
+
+There is no command to continue or abort a rebase started by *pull* *-r*; use *git* *--git-dir=.worktreesync* *rebase* *--continue* or *--abort*.
+
+Removing a synced file stages its deletion with *add* *-u*, but leaves its entries in *.worktreeinclude* and *info/exclude*.
+
+Because untracked files are hidden in *.worktreesync*, the hints in *git* *worktree-sync* *status* output mention *-u*; this refers to *git* *status* *-u*, not *git* *worktree-sync* *-u*.
+
+== SEE ALSO
+
+*git-worktree*(1), *git-clone*(1), *git-pull*(1), *git-status*(1), *githooks*(5), *gitignore*(5)
