@@ -47,7 +47,7 @@ update() {
 	}
 
 	if ! g merge-base --is-ancestor HEAD "origin/$branch"; then
-		echo "worktreesync: skipped $name (unpushed commits, run git-wts pull -r)"
+		echo "worktreesync: skipped $name (unpushed commits, run git-worktree-sync pull -r)"
 		return 0
 	fi
 

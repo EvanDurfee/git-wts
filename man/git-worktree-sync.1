@@ -1,11 +1,11 @@
 '\" t
-.\"     Title: git-wts
+.\"     Title: git-worktree-sync
 .\"      Date: 10/10/2026
 .\"    Manual: Git Manual
-.\"    Source: git-wts
+.\"    Source: git-worktree-sync
 .\"  Language: English
 .\"
-.TH "GIT\-WTS" "1" "10/10/2026" "git\-wts" "Git Manual"
+.TH "GIT\-WORKTREE\-SYNC" "1" "10/10/2026" "git\-worktree\-sync" "Git Manual"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -22,22 +22,22 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-git-wts \- Manage a worktree project layout and sync local files across worktrees
+git-worktree-sync \- Manage a worktree project layout and sync local files across worktrees
 .SH "SYNOPSIS"
 .sp
 .nf
-\fBgit\fR \fBwts\fR \fBclone\fR \fI<origin>\fR [\fI<dir>\fR]
-\fBgit\fR \fBwts\fR \fBadd\fR [\fB\-u\fR] [\fI<path>\fR\&...\:]
-\fBgit\fR \fBwts\fR \fBcommit\fR [\fB\-m\fR \fI<message>\fR]
-\fBgit\fR \fBwts\fR \fBpush\fR
-\fBgit\fR \fBwts\fR \fBpull\fR [\fB\-r\fR]
-\fBgit\fR \fBwts\fR \fBstatus\fR
+\fBgit\fR \fBworktree\-sync\fR \fBclone\fR \fI<origin>\fR [\fI<dir>\fR]
+\fBgit\fR \fBworktree\-sync\fR \fBadd\fR [\fB\-u\fR] [\fI<path>\fR\&...\:]
+\fBgit\fR \fBworktree\-sync\fR \fBcommit\fR [\fB\-m\fR \fI<message>\fR]
+\fBgit\fR \fBworktree\-sync\fR \fBpush\fR
+\fBgit\fR \fBworktree\-sync\fR \fBpull\fR [\fB\-r\fR]
+\fBgit\fR \fBworktree\-sync\fR \fBstatus\fR
 .fi
 .SH "DESCRIPTION"
 .sp
 Set up a project directory for development with \fBgit-worktree\fR(1), and keep local files that the project does not track (such as \fB\&.env\fR or \fB\&.idea/\fR) in sync between its worktrees\&.
 .sp
-A project directory holds a bare clone of the project repository and any number of linked worktrees created with \fBgit\fR \fBworktree\fR \fBadd\fR\&. Next to it lives a second, private repository, the \fIhub\fR, which version controls the local files\&. Each worktree gets its own \fB\&.worktreesync\fR git directory that tracks the hub, so local files are staged, committed, pushed and pulled much like project files, using the \fBgit\fR \fBwts\fR commands below\&.
+A project directory holds a bare clone of the project repository and any number of linked worktrees created with \fBgit\fR \fBworktree\fR \fBadd\fR\&. Next to it lives a second, private repository, the \fIhub\fR, which version controls the local files\&. Each worktree gets its own \fB\&.worktreesync\fR git directory that tracks the hub, so local files are staged, committed, pushed and pulled much like project files, using the \fBgit\fR \fBworktree\-sync\fR commands below\&.
 .sp
 Apart from \fBclone\fR, every command acts on the \fB\&.worktreesync\fR of the worktree containing the current directory, and can be run from any subdirectory of it\&.
 .SH "COMMANDS"
@@ -121,7 +121,7 @@ an editor is opened as for
 Push the worktree\(cqs
 \fB\&.worktreesync\fR
 commits to the hub\&. If another worktree pushed first, the push is rejected; integrate its changes with
-\fBgit\fR \fBwts\fR \fBpull\fR \fB\-r\fR
+\fBgit\fR \fBworktree\-sync\fR \fBpull\fR \fB\-r\fR
 and push again\&. A successful push updates the other worktrees, see "HOOKS"\&.
 .RE
 .PP
@@ -148,7 +148,7 @@ Show the
 \fBgit-status\fR(1)
 of the worktree\(cqs
 \fB\&.worktreesync\fR: staged and unstaged changes to synced files, and how many commits the worktree is ahead of or behind the hub\&. The hub is fetched first, so the ahead/behind count is current\&. Untracked files are not shown, including new files inside synced directories; use
-\fBgit\fR \fBwts\fR \fBadd\fR \fB\-u\fR
+\fBgit\fR \fBworktree\-sync\fR \fBadd\fR \fB\-u\fR
 to stage those\&.
 .RE
 .SH "OPTIONS"
@@ -187,7 +187,7 @@ configuration\&.
 Options are rejected by commands they do not apply to\&.
 .SH "LAYOUT"
 .sp
-After \fBgit\fR \fBwts\fR \fBclone\fR \fI<origin>\fR \fIproject\fR and \fBgit\fR \fBworktree\fR \fBadd\fR \fIfeat\fR, the project directory contains:
+After \fBgit\fR \fBworktree\-sync\fR \fBclone\fR \fI<origin>\fR \fIproject\fR and \fBgit\fR \fBworktree\fR \fBadd\fR \fIfeat\fR, the project directory contains:
 .PP
 \fBproject/\&.remote\&.bare\fR
 .RS 4
@@ -198,7 +198,7 @@ lists
 \fB\&.worktreesync\fR,
 \fB\&.worktreeinclude\fR
 and every path added with
-\fBgit\fR \fBwts\fR \fBadd\fR\&.
+\fBgit\fR \fBworktree\-sync\fR \fBadd\fR\&.
 .RE
 .PP
 \fBproject/\&.git\fR
@@ -241,7 +241,7 @@ syntax, itself tracked by the hub\&.
 .RE
 .SH "HOOKS"
 .sp
-\fBclone\fR copies every file in \fBshare/git\-wts/hooks/\fR\fINAME\fR\fB/\fR, relative to the installation prefix of the (symlink\-resolved) \fBgit\-wts\fR script, into the hooks directory of \fB\&.\fR\fINAME\fR in the project directory:
+\fBclone\fR copies every file in \fBshare/git\-worktree\-sync/hooks/\fR\fINAME\fR\fB/\fR, relative to the installation prefix of the (symlink\-resolved) \fBgit\-worktree\-sync\fR script, into the hooks directory of \fB\&.\fR\fINAME\fR in the project directory:
 .PP
 \fBpost\-checkout\fR (in \fB\&.remote\&.bare\fR)
 .RS 4
@@ -272,7 +272,7 @@ of every other worktree\&. A worktree is skipped, and never merged, if it has un
 .\}
 .nf
 remote: worktreesync: updated (project root)
-remote: worktreesync: skipped b (unpushed commits, run git\-wts pull \-r)
+remote: worktreesync: skipped b (unpushed commits, run git\-worktree\-sync pull \-r)
 .fi
 .if n \{\
 .RE
@@ -288,13 +288,13 @@ Set up a project and share a local environment file and IDE settings with every 
 .RS 4
 .\}
 .nf
-$ git wts clone git@github\&.com:me/foo\&.git
+$ git worktree-sync clone git@github\&.com:me/foo\&.git
 $ cd foo
 $ git worktree add feat
 $ cd feat
-$ git wts add \&.env \&.idea
-$ git wts commit \-m \*(Aqshare local settings\*(Aq
-$ git wts push
+$ git worktree-sync add \&.env \&.idea
+$ git worktree-sync commit \-m \*(Aqshare local settings\*(Aq
+$ git worktree-sync push
 .fi
 .if n \{\
 .RE
@@ -306,9 +306,9 @@ Worktrees created afterwards check out \fB\&.env\fR and \fB\&.idea/\fR automatic
 .RS 4
 .\}
 .nf
-$ git wts add \-u
-$ git wts commit \-m \*(Aqupdate run configurations\*(Aq
-$ git wts push
+$ git worktree-sync add \-u
+$ git worktree-sync commit \-m \*(Aqupdate run configurations\*(Aq
+$ git worktree-sync push
 .fi
 .if n \{\
 .RE
@@ -320,12 +320,12 @@ If the push is rejected because another worktree pushed first, rebase onto the h
 .RS 4
 .\}
 .nf
-$ git wts pull \-r
+$ git worktree-sync pull \-r
 CONFLICT (content): Merge conflict in \&.env
 $ $EDITOR \&.env
-$ git wts add \&.env
+$ git worktree-sync add \&.env
 $ git \-\-git\-dir=\&.worktreesync rebase \-\-continue
-$ git wts push
+$ git worktree-sync push
 .fi
 .if n \{\
 .RE
@@ -338,7 +338,7 @@ There is no command to continue or abort a rebase started by \fBpull\fR \fB\-r\f
 .sp
 Removing a synced file stages its deletion with \fBadd\fR \fB\-u\fR, but leaves its entries in \fB\&.worktreeinclude\fR and \fBinfo/exclude\fR\&.
 .sp
-Because untracked files are hidden in \fB\&.worktreesync\fR, the hints in \fBgit\fR \fBwts\fR \fBstatus\fR output mention \fB\-u\fR; this refers to \fBgit\fR \fBstatus\fR \fB\-u\fR, not \fBgit\fR \fBwts\fR \fB\-u\fR\&.
+Because untracked files are hidden in \fB\&.worktreesync\fR, the hints in \fBgit\fR \fBworktree\-sync\fR \fBstatus\fR output mention \fB\-u\fR; this refers to \fBgit\fR \fBstatus\fR \fB\-u\fR, not \fBgit\fR \fBworktree\-sync\fR \fB\-u\fR\&.
 .SH "SEE ALSO"
 .sp
 \fBgit-worktree\fR(1), \fBgit-clone\fR(1), \fBgit-pull\fR(1), \fBgit-status\fR(1), \fBgithooks\fR(5), \fBgitignore\fR(5)

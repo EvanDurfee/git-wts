@@ -1,11 +1,11 @@
-# bash completion for git-wts                              -*- shell-script -*-
+# bash completion for git-worktree-sync                              -*- shell-script -*-
 #
-# Completes both `git wts ...` and `git-wts ...`. Install as
-# ~/.local/share/bash-completion/completions/git-wts: git's completion lazy-loads
-# it the first time `git wts` is completed, and bash-completion loads it for
-# `git-wts` by name. Sourcing it from .bashrc also works.
+# Completes both `git worktree-sync ...` and `git-worktree-sync ...`. Install as
+# ~/.local/share/bash-completion/completions/git-worktree-sync: git's completion lazy-loads
+# it the first time `git worktree-sync` is completed, and bash-completion loads it for
+# `git-worktree-sync` by name. Sourcing it from .bashrc also works.
 
-_git_wts() {
+_git_worktree_sync() {
 	local subcommands="clone add commit push pull status"
 	local subcommand
 	subcommand="$(__git_find_on_cmdline "$subcommands")"
@@ -52,7 +52,7 @@ _git_wts() {
 	esac
 }
 
-# Completing `git-wts` directly needs git's completion helpers loaded first
+# Completing `git-worktree-sync` directly needs git's completion helpers loaded first
 if ! declare -F __git_complete >/dev/null; then
 	if declare -F _comp_load >/dev/null; then
 		_comp_load git
@@ -61,5 +61,5 @@ if ! declare -F __git_complete >/dev/null; then
 	fi
 fi
 if declare -F __git_complete >/dev/null; then
-	__git_complete git-wts _git_wts
+	__git_complete git-worktree-sync _git_worktree_sync
 fi
